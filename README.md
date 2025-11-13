@@ -19,6 +19,7 @@ and authorization testing across multiple protocols and token types, including:
 - Docker & Docker Compose
 - Python 3.10+
 - Linux (required for virtual USB/CCID support)
+- OpenSSL CLI (used for WebAuthn key generation)
 
 ### Setup
 
@@ -56,6 +57,10 @@ Use the control API to:
 - `POST /issue_ocra_challenge` — issue OCRA challenges
 - `GET /openapi.yaml` — download the OpenAPI definition
 - `GET /docs` — view a built-in preview
+- `GET /bridge/webauthn.js` — inject the FIDO2/WebAuthn bridge script for manual browser testing
+- `POST /bridge/register` / `POST /bridge/authenticate` — harness endpoints used by the bridge
+- `GET /pgp/keys` / `POST /pgp/keys` — list or generate OpenPGP keys
+- `POST /pgp/sign`, `/pgp/encrypt`, `/pgp/decrypt` — sign, encrypt, or decrypt messages with the PGP emulator
 
 Run the API locally without Docker:
 
@@ -95,6 +100,60 @@ docker compose -f docker/docker-compose.yml up --build
 # interact with the API (port 8080)...
 docker compose -f docker/docker-compose.yml down -v
 ```
+
+## Manual FIDO2 Testing (Browser Bridge)
+
+1. Start the harness locally (Python or Docker).
+2. In the browser tab pointing at the FIDO2-enabled site, execute:
+
+   ```javascript
+   (function () {
+     window.__TOKEN_HARNESS_URL = "http://localhost:8080";
+     const s = document.createElement("script");
+     s.src = "http://localhost:8080/bridge/webauthn.js";
+     document.head.appendChild(s);
+   })();
+   ```
+
+    This overrides `navigator.credentials.create/get` so WebAuthn calls are routed to the harness via `/bridge/register` and `/bridge/authenticate`.
+3. Trigger registration / authentication flows as usual. The harness generates valid attestation/assertion responses (ES256, packed/self attestation) and returns them to the page via the injected script.
+4. To revert, refresh the page (restoring the browser’s native authenticator).
+
+### Bookmarklet
+
+Create a new bookmark with the following URL (update the host/port if your harness runs elsewhere):
+
+```javascript
+javascript:(function(){window.__TOKEN_HARNESS_URL='http://localhost:8080';const s=document.createElement('script');s.src='http://localhost:8080/bridge/webauthn.js';document.head.appendChild(s);}());
+```
+
+Clicking the bookmark while on a target site injects the bridge automatically—no console needed. You can also fetch the raw script from `http://localhost:8080/bridge/webauthn.js` and include it in extensions or other automation.
+
+## PGP Workflows
+
+The harness includes a software PGP emulator (deterministic RSA-like behavior with ASCII armor). Sample usage:
+
+```bash
+# create a new test key
+curl -sS -X POST http://localhost:8080/pgp/keys \
+     -H 'Content-Type: application/json' \
+     -d '{"name":"Harness Tester","email":"tester@example.com"}'
+
+# sign data (detached, ASCII armored)
+curl -sS -X POST http://localhost:8080/pgp/sign \
+     -H 'Content-Type: application/json' \
+     -d '{"fingerprint":"<FPR>","message":"hello"}'
+
+# encrypt + decrypt
+curl -sS -X POST http://localhost:8080/pgp/encrypt \
+     -H 'Content-Type: application/json' \
+     -d '{"fingerprint":"<FPR>","message":"secret"}'
+curl -sS -X POST http://localhost:8080/pgp/decrypt \
+     -H 'Content-Type: application/json' \
+     -d '{"fingerprint":"<FPR>","ciphertext":"-----BEGIN PGP MESSAGE-----..."}'
+```
+
+Responses are ASCII armored blocks (for signatures/ciphertext) or plaintext strings, so they can be dropped directly into other tooling.
 
 ## OpenAPI Spec
 

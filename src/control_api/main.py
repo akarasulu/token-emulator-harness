@@ -1,6 +1,7 @@
 """Lightweight control API for the token emulator harness."""
 from __future__ import annotations
 
+import base64
 import json
 from dataclasses import dataclass, field
 from http import HTTPStatus
@@ -10,6 +11,16 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.parse import urlparse
 
 from harness import HarnessRegistry, load_config
+
+CORS_HEADERS = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "GET,POST,OPTIONS",
+}
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
 
 
 class HTTPException(Exception):
@@ -92,6 +103,10 @@ class MiniApp:
                 data = self.rfile.read(length)
                 return json.loads(data.decode("utf-8"))
 
+            def _set_cors(self):
+                for key, value in CORS_HEADERS.items():
+                    self.send_header(key, value)
+
             def _respond(self, method: str):
                 parsed = urlparse(self.path)
                 body = self._read_body()
@@ -99,6 +114,7 @@ class MiniApp:
                 self.send_response(result.status_code)
                 content_type = result.media_type or "application/json"
                 self.send_header("Content-Type", content_type)
+                self._set_cors()
                 for key, value in result.headers.items():
                     self.send_header(key, value)
                 self.end_headers()
@@ -114,6 +130,11 @@ class MiniApp:
 
             def do_POST(self):  # pylint: disable=invalid-name
                 self._respond("POST")
+
+            def do_OPTIONS(self):  # pylint: disable=invalid-name
+                self.send_response(204)
+                self._set_cors()
+                self.end_headers()
 
             def log_message(self, format: str, *args: Any) -> None:  # noqa: A003
                 return
@@ -168,6 +189,8 @@ class TestClient:
 
 BASE_DIR = Path(__file__).resolve().parents[2]
 OPENAPI_PATH = BASE_DIR / "docs" / "openapi.yaml"
+BRIDGE_JS_PATH = BASE_DIR / "assets" / "webauthn_bridge.js"
+BRIDGE_JS = BRIDGE_JS_PATH.read_text(encoding="utf-8")
 config = load_config()
 registry = HarnessRegistry(config)
 app = MiniApp()
@@ -208,7 +231,12 @@ def list_keys():
 @app.post("/fido2/register")
 def fido_register(user_id: str, rp_id: str):
     cred = registry.fido.register(user_id=user_id, rp_id=rp_id)
-    return cred.__dict__
+    return {
+        "credential_id": _b64url(cred.credential_id),
+        "user": cred.user_handle,
+        "rp_id": cred.rp_id,
+        "sign_count": cred.sign_count,
+    }
 
 
 @app.post("/fido2/authenticate")
@@ -258,6 +286,35 @@ def network_hsm_sign(payload: str):
     return registry.network_hsm.sign_payload(payload)
 
 
+@app.get("/pgp/keys")
+def pgp_keys():
+    return registry.pgp.list_keys()
+
+
+@app.post("/pgp/keys")
+def pgp_generate(name: Optional[str] = None, email: Optional[str] = None):
+    key = registry.pgp.generate_key(name=name, email=email)
+    return key
+
+
+@app.post("/pgp/sign")
+def pgp_sign(fingerprint: str, message: str):
+    signature = registry.pgp.sign(fingerprint, message)
+    return {"signature": signature}
+
+
+@app.post("/pgp/encrypt")
+def pgp_encrypt(fingerprint: str, message: str):
+    ciphertext = registry.pgp.encrypt(fingerprint, message)
+    return {"ciphertext": ciphertext}
+
+
+@app.post("/pgp/decrypt")
+def pgp_decrypt(fingerprint: str, ciphertext: str):
+    plaintext = registry.pgp.decrypt(fingerprint, ciphertext)
+    return {"plaintext": plaintext}
+
+
 @app.get("/openapi.yaml")
 def openapi_spec():
     if not OPENAPI_PATH.exists():
@@ -267,7 +324,16 @@ def openapi_spec():
 
 @app.get("/docs")
 def docs_page():
-    html = """
+    base_url = config.get("bridge_base") or "http://localhost:8080"
+    bookmarklet = (
+        "javascript:(function()%7B"
+        "window.__TOKEN_HARNESS_URL%20%3D%20'__BASE__';"
+        "var%20s%20%3D%20document.createElement('script');"
+        "s.src%20%3D%20'__BASE__/bridge/webauthn.js';"
+        "document.head.appendChild(s);"
+        "%7D)();"
+    ).replace("__BASE__", base_url)
+    template = """
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -283,6 +349,18 @@ def docs_page():
   <h1>Token Emulator Harness API</h1>
   <p>This page renders the OpenAPI specification bundled with the harness.</p>
   <p>Download the raw spec at <a href="/openapi.yaml">/openapi.yaml</a>.</p>
+  <h2>Manual WebAuthn Bridge</h2>
+  <p>To hook the harness into a FIDO2-enabled page, use the bookmarklet below:</p>
+  <p><a href="__BOOKMARKLET__">Token Harness Bridge</a></p>
+  <p>Alternatively, paste this snippet in your browser console while on the target page:</p>
+  <pre>
+(function () {{
+  window.__TOKEN_HARNESS_URL = "__BASE__";
+  const s = document.createElement("script");
+  s.src = "__BASE__/bridge/webauthn.js";
+  document.head.appendChild(s);
+}})();
+  </pre>
   <div id="status">Loading spec...</div>
   <pre id="spec"></pre>
   <script>
@@ -299,7 +377,31 @@ def docs_page():
 </body>
 </html>
 """.strip()
+    html = template.replace("__BASE__", base_url).replace("__BOOKMARKLET__", bookmarklet)
     return Response(html, media_type="text/html")
+
+
+@app.get("/bridge/webauthn.js")
+def bridge_script():
+    return Response(BRIDGE_JS, media_type="application/javascript")
+
+
+@app.post("/bridge/register")
+def bridge_register(**payload):
+    try:
+        result = registry.fido.make_attestation(payload)
+    except KeyError as exc:
+        raise HTTPException(400, str(exc)) from exc
+    return result
+
+
+@app.post("/bridge/authenticate")
+def bridge_authenticate(**payload):
+    try:
+        result = registry.fido.make_assertion(payload)
+    except KeyError as exc:
+        raise HTTPException(404, str(exc)) from exc
+    return result
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -1,7 +1,18 @@
+import base64
+
 from control_api.main import TestClient, app
 
 
 client = TestClient(app)
+
+
+def _b64url(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).rstrip(b"=").decode("ascii")
+
+
+def _decode(data: str) -> bytes:
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(data + padding)
 
 
 def test_totp_seed_and_code():
@@ -32,6 +43,7 @@ def test_fido_registration_and_authentication():
     reg_resp = client.post("/fido2/register", json={"user_id": "user1", "rp_id": "example.com"})
     assert reg_resp.status_code == 200
     credential = reg_resp.json()
+    assert "credential_id" in credential
 
     auth_resp = client.post(
         "/fido2/authenticate",
@@ -87,3 +99,70 @@ def test_reset_clears_state():
     assert resp.status_code == 200
     keys = client.get("/pkcs11/keys").json()
     assert keys == []
+
+
+def test_pgp_endpoints_flow():
+    create_resp = client.post("/pgp/keys", json={"name": "Tester", "email": "tester@example.com"})
+    assert create_resp.status_code == 200
+    pgp_key = create_resp.json()
+    fingerprint = pgp_key.get("fingerprint")
+    assert fingerprint
+
+    sign_resp = client.post("/pgp/sign", json={"fingerprint": fingerprint, "message": "hello"})
+    assert "BEGIN PGP SIGNATURE" in sign_resp.json()["signature"]
+
+    encrypt_resp = client.post("/pgp/encrypt", json={"fingerprint": fingerprint, "message": "secret"})
+    ciphertext = encrypt_resp.json()["ciphertext"]
+    assert "BEGIN PGP MESSAGE" in ciphertext
+
+    decrypt_resp = client.post("/pgp/decrypt", json={"fingerprint": fingerprint, "ciphertext": ciphertext})
+    assert decrypt_resp.json()["plaintext"].strip() == "secret"
+
+    list_resp = client.get("/pgp/keys")
+    assert any(key["fingerprint"] == fingerprint for key in list_resp.json())
+
+
+def test_bridge_register_and_authenticate_roundtrip():
+    challenge = _b64url(b"samplechallenge123")
+    user_id = _b64url(b"user-1")
+    creation = {
+        "challenge": challenge,
+        "origin": "https://example.com",
+        "rp": {"id": "example.com", "name": "Example"},
+        "user": {"id": user_id, "name": "user-1", "displayName": "User One"},
+        "pubKeyCredParams": [{"type": "public-key", "alg": -7}],
+    }
+    reg = client.post("/bridge/register", json=creation)
+    assert reg.status_code == 200
+    payload = reg.json()
+    assert payload["type"] == "public-key"
+    attestation = payload["response"]
+    assert _decode(attestation["clientDataJSON"])
+    assert _decode(attestation["attestationObject"])
+
+    request = {
+        "challenge": challenge,
+        "origin": "https://example.com",
+        "rpId": "example.com",
+        "allowCredentials": [{"id": payload["id"], "type": "public-key"}],
+    }
+    assertion = client.post("/bridge/authenticate", json=request)
+    assert assertion.status_code == 200
+    assertion_payload = assertion.json()
+    assert _decode(assertion_payload["response"]["clientDataJSON"])
+    assert _decode(assertion_payload["response"]["authenticatorData"])
+    assert _decode(assertion_payload["response"]["signature"])
+
+
+def test_bridge_script_and_docs_served():
+    js_resp = client.get("/bridge/webauthn.js")
+    assert js_resp.status_code == 200
+    assert "navigator.credentials" in js_resp.text()
+
+    spec_resp = client.get("/openapi.yaml")
+    assert spec_resp.status_code == 200
+    assert "openapi: 3.0.3" in spec_resp.text()
+
+    docs_resp = client.get("/docs")
+    assert docs_resp.status_code == 200
+    assert "<html" in docs_resp.text().lower()

@@ -220,6 +220,86 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HsmSignResponse'
+  /pgp/keys:
+    get:
+      summary: List PGP keys
+      operationId: listPgpKeys
+      responses:
+        '200':
+          description: Keys available in the PGP emulator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PgpKey'
+    post:
+      summary: Generate a new PGP key
+      operationId: createPgpKey
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PgpKeyRequest'
+      responses:
+        '200':
+          description: Created key metadata
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpKey'
+  /pgp/sign:
+    post:
+      summary: Create a PGP detached signature
+      operationId: pgpSign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PgpSignRequest'
+      responses:
+        '200':
+          description: ASCII-armored signature
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpSignature'
+  /pgp/encrypt:
+    post:
+      summary: Encrypt a message with PGP
+      operationId: pgpEncrypt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PgpEncryptRequest'
+      responses:
+        '200':
+          description: ASCII-armored ciphertext
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpCiphertext'
+  /pgp/decrypt:
+    post:
+      summary: Decrypt a PGP message
+      operationId: pgpDecrypt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PgpDecryptRequest'
+      responses:
+        '200':
+          description: Plaintext output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PgpPlaintext'
   /issue_ocra_challenge:
     post:
       summary: Request an OCRA challenge
@@ -395,4 +475,65 @@ components:
       type: object
       properties:
         detail:
+          type: string
+    PgpKeyRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+    PgpKey:
+      type: object
+      properties:
+        fingerprint:
+          type: string
+        uids:
+          type: array
+          items:
+            type: string
+    PgpSignRequest:
+      type: object
+      required:
+        - fingerprint
+        - message
+      properties:
+        fingerprint:
+          type: string
+        message:
+          type: string
+    PgpSignature:
+      type: object
+      properties:
+        signature:
+          type: string
+    PgpEncryptRequest:
+      type: object
+      required:
+        - fingerprint
+        - message
+      properties:
+        fingerprint:
+          type: string
+        message:
+          type: string
+    PgpCiphertext:
+      type: object
+      properties:
+        ciphertext:
+          type: string
+    PgpDecryptRequest:
+      type: object
+      required:
+        - fingerprint
+        - ciphertext
+      properties:
+        fingerprint:
+          type: string
+        ciphertext:
+          type: string
+    PgpPlaintext:
+      type: object
+      properties:
+        plaintext:
           type: string

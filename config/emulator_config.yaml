@@ -16,3 +16,6 @@ mobile_authenticator:
 network_hsm:
   endpoint: "hsm-emulator.local:5696"
   api_key: "changeme"
+pgp:
+  default_name: "Harness User"
+  default_email: "harness@example.com"

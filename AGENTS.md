@@ -17,7 +17,8 @@ scaffolding (control API, Docker stack, docs, tests) that we extend over time.
 - Container runtime: **Docker 24+** with **docker-compose**
 - Testing framework: **pytest**
 - Primary entry script: `docker/scripts/start_emulator.sh`
-- Control API prototype: `src/control_api/main.py` (FastAPI)
+- Control API entry point: `src/control_api/main.py` (custom lightweight server)
+- WebAuthn bridge assets live under `assets/` and are served at `/bridge/webauthn.js`
 
 When running shell commands, execute them from the repo root unless a different
 `workdir` is specified.
@@ -25,8 +26,8 @@ When running shell commands, execute them from the repo root unless a different
 ## Setup Steps
 
 1. `python3 -m venv .venv && source .venv/bin/activate`
-2. `pip install -r requirements.txt` (to be added later; for now install FastAPI + uvicorn manually if needed)
-3. `docker compose -f docker/docker-compose.yml up --build` (or run `uvicorn` locally)
+2. `pip install -r requirements.txt && pip install -r requirements-dev.txt`
+3. `docker compose -f docker/docker-compose.yml up --build` (or run `PYTHONPATH=src python -m control_api.main`)
 4. Run tests with `pytest`
 
 ## Coding Guidelines
@@ -57,10 +58,13 @@ docker compose -f docker/docker-compose.yml up -d
 docker/scripts/reset_all.sh
 
 # Run control API locally
-uvicorn src.control_api.main:app --reload --port 8080
+PYTHONPATH=src python -m control_api.main
 
 # Run tests
 pytest -q
+
+# Export OpenAPI spec
+./scripts/export_openapi.sh  # -> dist/openapi.yaml
 ```
 
 ## Open Tasks / Wish List

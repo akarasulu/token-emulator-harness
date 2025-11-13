@@ -12,6 +12,8 @@ protocols, transports, and token styles:
 - Client certificate / mutual TLS token flows
 - Mobile authenticator (BLE/NFC) emulation
 - Remote HSM / KMIP-style network token emulation
+- WebAuthn browser bridge for manual testing (option 1 from earlier discussion)
+- OpenPGP workflows (key generation, signing, encryption/decryption)
 
 ## Requirements (High Level)
 
@@ -25,3 +27,7 @@ protocols, transports, and token styles:
 4. Supply logging and telemetry for each module for debugging (TBD).
 5. Run headless inside containers/CI environments (docker-compose stack + dev
    container provide this).
+6. Provide a WebAuthn bridge script so manual browser sessions can route
+   `navigator.credentials.create/get` through the harness.
+7. Provide software-backed PGP flows (key lifecycle, signing, encryption) that
+   mimic OpenPGP UX while remaining deterministic for automation.
