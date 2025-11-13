@@ -1,3 +1,7 @@
 #!/usr/bin/env bash
-echo "Starting emulator stack..."
-docker-compose -f ../docker-compose.yml up -d
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+echo "Starting emulator stack from ${ROOT_DIR}/docker-compose.yml"
+docker compose -f "${ROOT_DIR}/docker-compose.yml" up -d

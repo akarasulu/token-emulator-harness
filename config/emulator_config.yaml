@@ -7,3 +7,12 @@ fido2:
   authenticator_id: "emu1"
 totp:
   drift_window: 30
+smartcard:
+  reader_id: "reader1"
+  card_pin: "0000"
+mobile_authenticator:
+  device_id: "mobile1"
+  transport: "ble"
+network_hsm:
+  endpoint: "hsm-emulator.local:5696"
+  api_key: "changeme"

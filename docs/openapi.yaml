@@ -1,0 +1,398 @@
+openapi: 3.0.3
+info:
+  title: Token Emulator Harness API
+  version: 0.1.0
+  description: >
+    Lightweight control API that simulates strong-authentication hardware
+    components (PKCS#11, FIDO2, OTP, smart-card, mobile authenticators, network
+    HSM). All endpoints return JSON and are designed for automated testing.
+servers:
+  - url: http://localhost:8080
+paths:
+  /reset_all:
+    post:
+      summary: Reset emulator state
+      operationId: resetAll
+      responses:
+        '200':
+          description: All modules reset
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatusResponse'
+  /otp/seed:
+    post:
+      summary: Issue a new OTP seed
+      operationId: issueSeed
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OtpSeedRequest'
+      responses:
+        '200':
+          description: Seed issued
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpSeed'
+  /otp/code/{seed_id}:
+    get:
+      summary: Retrieve the current OTP code
+      operationId: getOtpCode
+      parameters:
+        - name: seed_id
+          in: path
+          required: true
+          description: Seed identifier returned by /otp/seed
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current code for seed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OtpCodeResponse'
+        '404':
+          description: Seed not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /pkcs11/keys:
+    post:
+      summary: Generate a PKCS#11 key
+      operationId: createPkcs11Key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Pkcs11KeyRequest'
+      responses:
+        '200':
+          description: Key generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Pkcs11Key'
+    get:
+      summary: List PKCS#11 keys
+      operationId: listPkcs11Keys
+      responses:
+        '200':
+          description: Keys in the emulator
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Pkcs11Key'
+  /fido2/register:
+    post:
+      summary: Register a FIDO2 credential
+      operationId: fidoRegister
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FidoRegisterRequest'
+      responses:
+        '200':
+          description: Credential registered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FidoCredential'
+  /fido2/authenticate:
+    post:
+      summary: Perform a FIDO2 authentication
+      operationId: fidoAuthenticate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FidoAuthRequest'
+      responses:
+        '200':
+          description: Assertion result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FidoAssertion'
+        '404':
+          description: Credential not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /smartcard/insert:
+    post:
+      summary: Insert smart-card
+      operationId: smartcardInsert
+      responses:
+        '200':
+          description: Smart-card state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartCardState'
+  /smartcard/remove:
+    post:
+      summary: Remove smart-card
+      operationId: smartcardRemove
+      responses:
+        '200':
+          description: Smart-card state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartCardState'
+  /smartcard/status:
+    get:
+      summary: Current smart-card status
+      operationId: smartcardStatus
+      responses:
+        '200':
+          description: Smart-card state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartCardState'
+  /mobile/pair:
+    post:
+      summary: Pair a mobile authenticator
+      operationId: mobilePair
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobilePairRequest'
+      responses:
+        '200':
+          description: Paired device
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileState'
+  /mobile/assert:
+    post:
+      summary: Assert a challenge with a mobile authenticator
+      operationId: mobileAssert
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MobileAssertRequest'
+      responses:
+        '200':
+          description: Challenge response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MobileAssertion'
+        '404':
+          description: Device not paired
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+  /network_hsm/sign:
+    post:
+      summary: Sign payload via network HSM emulator
+      operationId: networkHsmSign
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/HsmSignRequest'
+      responses:
+        '200':
+          description: Signature response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HsmSignResponse'
+  /issue_ocra_challenge:
+    post:
+      summary: Request an OCRA challenge
+      operationId: issueOcraChallenge
+      responses:
+        '200':
+          description: Challenge string
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OcraChallenge'
+components:
+  schemas:
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: reset
+    OtpSeedRequest:
+      type: object
+      properties:
+        type:
+          type: string
+          default: totp
+          description: Seed type (totp/hotp/ocra)
+    OtpSeed:
+      type: object
+      properties:
+        seed_id:
+          type: string
+        secret:
+          type: string
+        token_type:
+          type: string
+        issued_at:
+          type: integer
+          format: int64
+    OtpCodeResponse:
+      type: object
+      properties:
+        seed_id:
+          type: string
+        code:
+          type: string
+    Pkcs11KeyRequest:
+      type: object
+      required:
+        - label
+      properties:
+        label:
+          type: string
+    Pkcs11Key:
+      type: object
+      properties:
+        key_id:
+          type: string
+        label:
+          type: string
+        created_at:
+          type: integer
+          format: int64
+        material:
+          type: string
+    FidoRegisterRequest:
+      type: object
+      required:
+        - user_id
+        - rp_id
+      properties:
+        user_id:
+          type: string
+        rp_id:
+          type: string
+    FidoCredential:
+      type: object
+      properties:
+        credential_id:
+          type: string
+        user_id:
+          type: string
+        rp_id:
+          type: string
+        public_key:
+          type: string
+        sign_count:
+          type: integer
+          format: int64
+    FidoAuthRequest:
+      type: object
+      required:
+        - credential_id
+        - challenge
+      properties:
+        credential_id:
+          type: string
+        challenge:
+          type: string
+    FidoAssertion:
+      type: object
+      properties:
+        credential_id:
+          type: string
+        signature:
+          type: string
+        sign_count:
+          type: integer
+    SmartCardState:
+      type: object
+      properties:
+        inserted:
+          type: boolean
+        certificate:
+          type: string
+          nullable: true
+        pin:
+          type: string
+    MobilePairRequest:
+      type: object
+      required:
+        - device_id
+      properties:
+        device_id:
+          type: string
+    MobileState:
+      type: object
+      properties:
+        device_id:
+          type: string
+        paired:
+          type: boolean
+        last_challenge:
+          type: string
+          nullable: true
+    MobileAssertRequest:
+      type: object
+      required:
+        - device_id
+        - challenge
+      properties:
+        device_id:
+          type: string
+        challenge:
+          type: string
+    MobileAssertion:
+      type: object
+      properties:
+        device_id:
+          type: string
+        response:
+          type: string
+    HsmSignRequest:
+      type: object
+      required:
+        - payload
+      properties:
+        payload:
+          type: string
+    HsmSignResponse:
+      type: object
+      properties:
+        signature:
+          type: string
+        algorithm:
+          type: string
+          example: HMAC-SHA256
+    OcraChallenge:
+      type: object
+      properties:
+        challenge:
+          type: string
+    Error:
+      type: object
+      properties:
+        detail:
+          type: string

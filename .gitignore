@@ -1,0 +1,15 @@
+# Bytecode / cache
+__pycache__/
+.pytest_cache/
+
+# Virtual environments
+.venv/
+
+# Tooling artifacts
+.DS_Store
+.devcontainer/.cache/
+
+# Runtime artifacts
+logs/
+docker/logs/
+dist/
