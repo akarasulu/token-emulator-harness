@@ -52,6 +52,7 @@ Use the control API to:
 - `POST /pkcs11/keys` / `GET /pkcs11/keys` — simulate PKCS#11 key lifecycle
 - `POST /fido2/register` / `POST /fido2/authenticate` — emulate FIDO2 flows
 - `POST /smartcard/insert` / `POST /smartcard/remove` / `GET /smartcard/status`
+- `POST /smartcard/refresh` — regenerate smart-card certificate without reinsertion
 - `POST /mobile/pair` / `POST /mobile/assert` — BLE/NFC mobile authenticators
 - `POST /network_hsm/sign` — sign payloads via the HSM emulator
 - `POST /issue_ocra_challenge` — issue OCRA challenges
@@ -155,6 +156,16 @@ curl -sS -X POST http://localhost:8080/pgp/decrypt \
 
 Responses are ASCII armored blocks (for signatures/ciphertext) or plaintext strings, so they can be dropped directly into other tooling.
 
+## Terminal UI
+
+Run the interactive TUI (which auto-starts the harness server if needed) via:
+
+```bash
+PYTHONPATH=src python -m tui.app
+```
+
+Each module (OTP, PKCS#11, FIDO2, smart-card, mobile, HSM, PGP) has its own tab with context-specific buttons that call the same REST endpoints exposed by the harness. This provides a quick manual control surface for demos or troubleshooting.
+
 ## OpenAPI Spec
 
 - Source file: `docs/openapi.yaml`
@@ -165,6 +176,14 @@ Responses are ASCII armored blocks (for signatures/ciphertext) or plaintext stri
 ./scripts/export_openapi.sh
 # outputs dist/openapi.yaml
 ```
+
+## TODO
+
+- [ ] Testing testing testing
+- [ ] Add more detailed module documentation
+- [ ] Flesh out CI workflows
+- [ ] Implement additional emulator modules (e.g., BLE/NFC, KMIP)
+- [ ] Consider a CTAP2 Proxy Daemon for advanced FIDO2 testing
 
 ## License
 

@@ -44,22 +44,24 @@
     panel.id = "token-harness-panel";
     Object.assign(panel.style, {
       position: "fixed",
-      bottom: "1rem",
+      top: "1rem",
       right: "1rem",
       background: "#111",
       color: "#fff",
       padding: "1rem",
       borderRadius: "8px",
       boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-      zIndex: 99999,
+      zIndex: 2147483647,
       fontFamily: "sans-serif",
       maxWidth: "320px",
-      display: "none",
+      display: "flex",
+      flexDirection: "column",
+      gap: "0.5rem",
     });
     messageEl = document.createElement("div");
-    messageEl.style.marginBottom = "0.75rem";
     actionBtn = document.createElement("button");
-    actionBtn.textContent = "Send via Harness";
+    actionBtn.textContent = "Waiting…";
+    actionBtn.disabled = true;
     Object.assign(actionBtn.style, {
       background: "#00b894",
       border: "none",
@@ -67,11 +69,13 @@
       padding: "0.5rem 1rem",
       borderRadius: "4px",
       cursor: "pointer",
+      opacity: "0.7",
     });
     actionBtn.addEventListener("click", async () => {
       if (!state.pending) return;
       actionBtn.disabled = true;
       actionBtn.textContent = "Processing...";
+      actionBtn.style.opacity = "0.7";
       try {
         if (state.pending.type === "create") {
           const payload = serializeCreation(state.pending.options);
@@ -94,15 +98,20 @@
     panel.appendChild(messageEl);
     panel.appendChild(actionBtn);
     document.body.appendChild(panel);
+    setStatus("Harness bridge idle – waiting for WebAuthn request.");
+  }
+
+  function setStatus(text, buttonEnabled = false, buttonLabel = "Waiting…") {
+    ensurePanel();
+    messageEl.textContent = text;
+    actionBtn.disabled = !buttonEnabled;
+    actionBtn.textContent = buttonLabel;
+    actionBtn.style.opacity = buttonEnabled ? "1" : "0.7";
   }
 
   function promptUser(type) {
-    ensurePanel();
     const label = type === "create" ? "registration" : "authentication";
-    messageEl.textContent = `Harness intercepted WebAuthn ${label} request. Click to send.`;
-    actionBtn.disabled = false;
-    actionBtn.textContent = "Send via Harness";
-    panel.style.display = "block";
+    setStatus(`Harness intercepted WebAuthn ${label} request.`, true, "Send via Harness");
   }
 
   function serializeCreation(publicKey) {
@@ -202,5 +211,6 @@
   };
 
   navigator.credentials.__harnessWrapped = true;
+  setStatus("Harness bridge ready – awaiting WebAuthn calls.");
   console.info("Token emulator harness WebAuthn bridge enabled.");
 })();

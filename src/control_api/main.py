@@ -250,7 +250,8 @@ def fido_authenticate(credential_id: str, challenge: str):
 
 @app.post("/smartcard/insert")
 def smartcard_insert():
-    return registry.smartcard.insert_card().__dict__
+    status = registry.smartcard.insert_card()
+    return status.__dict__
 
 
 @app.post("/smartcard/remove")
@@ -261,6 +262,12 @@ def smartcard_remove():
 @app.get("/smartcard/status")
 def smartcard_status():
     return registry.smartcard.status().__dict__
+
+
+@app.post("/smartcard/refresh")
+def smartcard_refresh():
+    status = registry.smartcard.refresh_certificate()
+    return status.__dict__
 
 
 @app.post("/mobile/pair")
@@ -311,7 +318,10 @@ def pgp_encrypt(fingerprint: str, message: str):
 
 @app.post("/pgp/decrypt")
 def pgp_decrypt(fingerprint: str, ciphertext: str):
-    plaintext = registry.pgp.decrypt(fingerprint, ciphertext)
+    try:
+        plaintext = registry.pgp.decrypt(fingerprint, ciphertext)
+    except ValueError as exc:
+        raise HTTPException(400, str(exc)) from exc
     return {"plaintext": plaintext}
 
 

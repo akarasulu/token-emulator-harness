@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import base64
+import binascii
 import hashlib
 import hmac
 import json
@@ -345,6 +346,12 @@ class SmartCardService:
         self._state.certificate = f"CERT::{random_cert}"
         return self._state
 
+    def refresh_certificate(self) -> SmartCardState:
+        random_cert = base64.urlsafe_b64encode(secrets.token_bytes(48)).decode("ascii")
+        if self._state.inserted:
+            self._state.certificate = f"CERT::{random_cert}"
+        return self._state
+
     def remove_card(self) -> SmartCardState:
         self._state.inserted = False
         self._state.certificate = None
@@ -433,7 +440,10 @@ class PGPService:
     def decrypt(self, fingerprint: str, ciphertext: str) -> str:
         key = self._get_key(fingerprint)
         payload = self._extract_payload(ciphertext)
-        data = base64.b64decode(payload)
+        try:
+            data = base64.b64decode(payload)
+        except binascii.Error as exc:
+            raise ValueError("invalid PGP ciphertext payload") from exc
         keystream = self._keystream(key["secret"], len(data))
         plaintext = bytes(a ^ b for a, b in zip(data, keystream))
         return plaintext.decode("utf-8")

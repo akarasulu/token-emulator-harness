@@ -1,7 +1,10 @@
 {
   "cSpell.words": [
+    "browserless",
     "CCID",
+    "ciphertext",
     "CTAP",
+    "Dockerized",
     "HOTP",
     "KMIP",
     "OCRA",
@@ -10,6 +13,7 @@
     "PYTHONPATH",
     "smartcard",
     "TOTP",
+    "venv",
     "webauthn"
   ]
 }

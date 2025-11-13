@@ -163,6 +163,17 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SmartCardState'
+  /smartcard/refresh:
+    post:
+      summary: Regenerate smart-card certificate without reinsertion
+      operationId: smartcardRefresh
+      responses:
+        '200':
+          description: Updated smart-card state
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SmartCardState'
   /mobile/pair:
     post:
       summary: Pair a mobile authenticator
