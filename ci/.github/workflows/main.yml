@@ -1,0 +1,21 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker Emulator Stack
+        run: docker-compose -f docker/docker-compose.yml up -d
+      - name: Wait for services
+        run: sleep 15
+      - name: Run tests
+        run: pytest --maxfail=1 --disable-warnings -q
+      - name: Teardown
+        run: docker-compose -f docker/docker-compose.yml down --volumes --remove-orphans

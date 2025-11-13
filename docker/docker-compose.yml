@@ -1,0 +1,12 @@
+version: "3.8"
+services:
+  control_api:
+    build:
+      context: ./docker
+      dockerfile: Dockerfile
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./config:/opt/emulator/config
+      - ./logs:/opt/emulator/logs
+    # Add other emulator sub-services here

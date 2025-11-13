@@ -1,0 +1,9 @@
+# Default configuration for emulator harness
+pkcs11:
+  module_path: "/opt/emulator/lib/pkcs11.so"
+  slot_index: 0
+  user_pin: "1234"
+fido2:
+  authenticator_id: "emu1"
+totp:
+  drift_window: 30
